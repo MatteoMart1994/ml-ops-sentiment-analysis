@@ -1,0 +1,20 @@
+# Application runtime — pinned for reproducible Docker/CI builds
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+transformers==4.46.3
+torch==2.2.2
+scipy==1.11.4
+numpy==1.26.4
+prometheus-client==0.21.1
+prometheus-fastapi-instrumentator==7.0.0
+huggingface-hub==0.26.5
+tokenizers==0.20.3
+safetensors==0.4.5
+sentencepiece==0.2.0
+regex==2024.11.6
+requests==2.32.3
+filelock==3.16.1
+tqdm==4.67.1
+pyyaml==6.0.2
+typing-extensions==4.12.2
