@@ -1,0 +1,11 @@
+.venv
+__pycache__
+.pytest_cache
+.git
+.github
+*.pyc
+.DS_Store
+.env
+infrastructure/airflow/logs
+infrastructure/airflow/plugins
+sentiment_review_colab.ipynb
