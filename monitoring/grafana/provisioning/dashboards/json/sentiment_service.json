@@ -1,0 +1,71 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Request rate (/predict)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{handler=\"/predict\"}[1m]))",
+          "legendFormat": "rps"
+        }
+      ]
+    },
+    {
+      "title": "p95 latency (/predict)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{handler=\"/predict\"}[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "title": "5xx error ratio",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{handler=\"/predict\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_requests_total{handler=\"/predict\"}[5m])), 0.001)",
+          "legendFormat": "error_ratio"
+        }
+      ]
+    },
+    {
+      "title": "Predictions by label (rate)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(sentiment_predictions_total[5m])) by (label)",
+          "legendFormat": "{{label}}"
+        }
+      ]
+    },
+    {
+      "title": "Mean input text length (chars)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum(rate(sentiment_input_text_length_chars_sum[5m])) / clamp_min(sum(rate(sentiment_input_text_length_chars_count[5m])), 0.001)",
+          "legendFormat": "avg_len"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["sentiment", "mlops"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Sentiment Inference Service",
+  "uid": "sentiment-inference",
+  "version": 1
+}

@@ -1,0 +1,113 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: sentiment_inference
+    folder: Sentiment
+    interval: 1m
+    rules:
+      - uid: sentiment-high-latency
+        title: HighInferenceLatency
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                histogram_quantile(0.95,
+                sum(rate(http_request_duration_seconds_bucket{handler="/predict"}[5m])) by (le))
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [2]
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: p95 latency on /predict above 2s for 5 minutes
+          description: >-
+            CPU inference is normally well below one second; a sustained p95 above 2s
+            indicates CPU saturation or unusually long inputs.
+
+      - uid: sentiment-high-error-rate
+        title: HighErrorRate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                sum(rate(http_requests_total{handler="/predict",status=~"5.."}[5m]))
+                / clamp_min(sum(rate(http_requests_total{handler="/predict"}[5m])), 0.001)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.05]
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 5xx ratio on /predict above 5% for 5 minutes
+          description: Likely a faulty deploy, out-of-memory condition or model load failure.
+
+      - uid: sentiment-negative-dominance
+        title: NegativeClassDominance
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                sum(rate(sentiment_predictions_total{label="negative"}[30m]))
+                / clamp_min(sum(rate(sentiment_predictions_total[30m])), 0.001)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.6]
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: More than 60% of predictions are negative over 30 minutes
+          description: >-
+            Possible shift in incoming traffic or model degradation; compare with the
+            offline evaluation of the Airflow retrain cycle.
