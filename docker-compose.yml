@@ -1,3 +1,26 @@
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: infrastructure/airflow/Dockerfile
+  image: sentiment-airflow:local
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=}
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    # /tmp is writable by user `airflow` (named volumes under /opt/... often need root chown)
+    MLOPS_ARTIFACT_DIR: /tmp/airflow_sentiment
+  volumes:
+    - ./infrastructure/airflow/dags:/opt/airflow/dags
+    - ./infrastructure/airflow/logs:/opt/airflow/logs
+    - ./infrastructure/airflow/plugins:/opt/airflow/plugins
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    - sentiment-network
+
 services:
   sentiment-api:
     build: .
@@ -41,7 +64,73 @@ services:
     networks:
       - sentiment-network
 
+  postgres:
+    image: postgres:15-alpine
+    container_name: sentiment-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sentiment-network
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: sentiment-airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username "${AIRFLOW_ADMIN_USER:-admin}" \
+          --password "${AIRFLOW_ADMIN_PASSWORD:-admin}" \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.org || true
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: sentiment-airflow-webserver
+    command: webserver
+    ports:
+      - "8088:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: sentiment-airflow-scheduler
+    command: scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
 networks:
   sentiment-network:
     driver: bridge
+
+volumes:
+  postgres-db-volume:
