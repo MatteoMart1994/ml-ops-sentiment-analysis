@@ -1,0 +1,1 @@
+"""Sentiment inference FastAPI service."""
